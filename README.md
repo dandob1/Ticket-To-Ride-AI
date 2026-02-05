@@ -4,6 +4,7 @@
 2. Run `python TTRGameSim.py`
 3. To play against the AI, type `2` players and select `1` AI when prompted
 4. You can also make `2` AI play against each other by selecting `2` AI when prompted
+5. Note: Final scores may appear negative. To avoid long runtimes, the current implementation (2/4/2026) limits simulations to approximately 25% of a full game. Since endgame is not reached, final scores are significantly deducted.
 
 
 # Blog:
