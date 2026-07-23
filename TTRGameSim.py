@@ -18,7 +18,7 @@ import networkx
 import TTRPrint
 
 class Game(object):
-    def __init__(self, numPlayers, numAi, rewards):
+    def __init__(self, numPlayers, numAi, rewards, player_names=None):
         self.sizeDrawPile          = 5
         self.numTicketsDealt       = 3
         self.sizeStartingHand      = 4
@@ -27,7 +27,7 @@ class Game(object):
         self.endingTrainCount      = 3 # ending condition to trigger final round
 
         self.pointsForLongestRoute = 10
-        self.startingNumOfTrains   = 14 #45
+        self.startingNumOfTrains   = 45 #45
         self.deck                  = TTRCards.Cards(self.sizeDrawPile, self.maxWilds)
         
         self.board                 = TTRBoard.Board()
@@ -54,13 +54,14 @@ class Game(object):
                                   #this is now done in initialize method below
                                   #occurs before first player's first move
             playerBoard      = TTRBoard.PlayerBoard()
-            
+            pname = player_names[position] if player_names and position < len(player_names) else None
             player           = TTRPlayer.Player(startingHand, 
                                                 startingTickets, 
                                                 playerBoard, 
                                                 position, 
                                                 self.startingNumOfTrains,
-                                                False
+                                                False,
+                                                name=pname
                                                 )      
                                 
             self.players.append(player)

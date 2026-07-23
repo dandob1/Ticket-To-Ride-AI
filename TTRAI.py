@@ -79,15 +79,24 @@ class AI:
             # No legal actions
             return None
 
-        best_child = max(self.root.children, key=lambda c: c.value)
+        # Pick the most-visited child (the "robust child"), breaking ties by
+        # average value. Selecting by raw total value is biased toward whichever
+        # child happened to be expanded first (and therefore visited most), so
+        # it is a poor final-move criterion.
+        def child_score(c):
+            avg = c.value / c.visit_count if c.visit_count > 0 else float('-inf')
+            return (c.visit_count, avg)
+
+        best_child = max(self.root.children, key=child_score)
         best_action = best_child.move
+        best_avg = best_child.value / best_child.visit_count if best_child.visit_count > 0 else 0
 
         print(f"the best action is {best_action}")
         if(best_action["move"] == "tickets"):
             print(f"Current Destination Tickets:  {player.tickets}" )
         elif(best_action["move"] == "cards"):
             print(f"Current Cards: {player.hand}")
-        print(f"current score {best_child.value}")
+        print(f"current score {best_avg:.2f} (visits {best_child.visit_count})")
         return best_action
 
     def backpropagate(self, node, reward):
@@ -155,27 +164,68 @@ class AI:
         return exploitation + exploration
 
     def rollout(self, state, depth, playerToTrack):
-        player = state['player']
-        if self.game.checkEndingCondition(player):
-            return self.game.getFinalScore(playerToTrack)
+        # Play forward from `state` for up to `depth` moves, then evaluate the
+        # single state actually reached. The previous implementation summed a
+        # fresh reward at every recursion step, which inflated values by an
+        # amount that depended on how deep the rollout ran and made the
+        # estimates essentially meaningless.
+        current = state
+        steps = 0
 
-        # Reached depth limit
-        if depth == 0:
-            return self.game.getReward(playerToTrack)
-        
-        # No legal actions
-        legal_actions = self.game.getLegalActions(player)
-        if not legal_actions:
-            return self.game.getReward(playerToTrack)
+        while steps < depth:
+            player = current['player']
 
-        # Pick a random legal action, and get the new state
-        action = random.choice(legal_actions)
-        next_state = self.makeNextMove(state, action)
+            # Stop once the (near) out-of-trains end condition is hit.
+            if self.game.checkEndingCondition(player):
+                break
 
-        # Recurse deeper
-        discount_factor = 1
-        return self.game.getReward(next_state['player']) + \
-            discount_factor * self.rollout(next_state, depth - 1, playerToTrack)
+            legal_actions = self.game.getLegalActions(player)
+            if not legal_actions:
+                break
+
+            action = self.rollout_policy(player, legal_actions)
+            current = self.makeNextMove(current, action)
+            steps += 1
+
+        # Evaluate the evolved player at the end of the rollout so the estimate
+        # reflects the progress made during the rollout.
+        return self.game.getReward(current['player'])
+
+    def rollout_policy(self, player, legal_actions):
+        """Rollout action selection.
+
+        Points are only earned by claiming routes, so bias heavily toward
+        claiming. Also gate ticket-drawing behind a trains-remaining check —
+        incomplete tickets are a point *penalty*, and near end-game there is
+        almost never enough time to finish newly drawn ones.
+        """
+        train_actions  = [a for a in legal_actions if a['move'] == 'train']
+        ticket_actions = [a for a in legal_actions if a['move'] == 'tickets']
+
+        # Strong bias toward claiming routes (weighted by their point value)
+        if train_actions and random.random() < 0.75:
+            weights = [self.game.routeValues[a['edge']['weight']]
+                       for a in train_actions]
+            return random.choices(train_actions, weights=weights, k=1)[0]
+
+        # Don't draw tickets if trains are running low — unfinished tickets
+        # carry a large negative-point penalty. Gate at 35 so the AI only
+        # draws tickets in the very early game (first ~10 trains spent).
+        if ticket_actions and player.getNumTrains() <= 35:
+            non_ticket = [a for a in legal_actions if a['move'] != 'tickets']
+            if non_ticket:
+                return random.choice(non_ticket)
+
+        # Cap outstanding (uncompleted) tickets — accumulating more tickets
+        # than can realistically be finished is the #1 cause of negative scores.
+        if ticket_actions:
+            outstanding = sum(1 for t in player.tickets if not player.tickets[t])
+            if outstanding >= 4:
+                non_ticket = [a for a in legal_actions if a['move'] != 'tickets']
+                if non_ticket:
+                    return random.choice(non_ticket)
+
+        return random.choice(legal_actions)
     
     # Transition function between states
     def makeNextMove(self, state, action):
@@ -204,6 +254,11 @@ class AI:
             for card, count in color.items():
                 new_state['player'].removeCardsFromHand(card, count) 
             
+            # Spend the trains used to claim this route. Without this the
+            # simulation never approaches the end-game condition and the AI
+            # cannot reason about the cost of routes or when the game ends.
+            new_state['player'].playNumTrains(routeDist)
+
             # Give points
             new_state['player'].addPoints(self.game.routeValues[routeDist])
             #the player's theorectical points for entering this state
@@ -451,14 +506,14 @@ class AI:
     def evaluate_train_card(self, player, color, state=None):
         if color == "wild":
             return 6.0
-        
+
         board = self.game.board
         route_values = self.game.routeValues
         tickets = getattr(player, 'tickets', [])
         player_board = player.playerBoard
 
         try:
-            player_cities =set(player_board.getCities())
+            player_cities = set(player_board.getCities())
         except Exception:
             player_cities = set()
 
@@ -469,27 +524,24 @@ class AI:
 
         if not same_color_edges:
             return 0.1
-        
+
         score = 1.0
 
         for edge in same_color_edges:
             (c1, c2) = edge['edge']
-            length = edge['weight']
-
+            length   = edge['weight']
             route_val = route_values.get(length, length)
             score += route_val / 10.0
-
             if c1 in player_cities or c2 in player_cities:
                 score += 0.7
-
-            for(t1, t2, val) in tickets:
+            for (t1, t2, val) in tickets:
                 if c1 in (t1, t2) or c2 in (t1, t2):
-                    score += val / 40.0 
+                    score += val / 40.0
 
         hand = player.getHand()
         count_of_color = hand.get(color, 0)
         score += 0.4 * count_of_color
-        
+
         return score
 
     """
@@ -519,21 +571,38 @@ class AI:
 
         scored.sort(key=lambda x: x[1], reverse=True)
 
+        trains_left = player.getNumTrains()
+        # Raise the keep threshold as trains deplete so the AI stops
+        # collecting tickets it cannot possibly finish.
+        if trains_left >= 35:
+            threshold = 0.5
+        elif trains_left >= 25:
+            threshold = 1.5
+        else:
+            threshold = 3.5
+
         kept = []
         kept_set = set()
 
         for t, score in scored:
-            if score > 0:
+            if score > threshold:
                 kept.append(t)
                 kept_set.add(t)
 
+        # Always keep at least one ticket — but only if it isn't going to
+        # cost more points than it's worth (score < -value means we'd
+        # definitely lose more than the ticket is worth).
         if not kept:
-            kept.append(scored[0][0])
-            kept_set.add(scored[0][0])
+            best_t, best_score = scored[0]
+            t_value = best_t[2]
+            if best_score > -t_value:
+                kept.append(best_t)
+                kept_set.add(best_t)
+            # else: keep nothing this round — discarding all is intentional
 
         for t in kept:
             player.addTicket(t)
-        
+
         for t, _ in scored:
             if t not in kept_set:
                 deck.addToTicketDiscard(t)
@@ -566,10 +635,15 @@ class AI:
             return value + 20
 
         trains_left = player.getNumTrains()
+
+        # Hard block — not enough trains to complete this ticket → big penalty
         if remaining_dist > trains_left:
-            penalty = 5
-        else:
-            penalty = 0
+            return -(value * 2.5)
+
+        # Risky — completing this ticket would consume more than 65% of all
+        # remaining trains, leaving very little flexibility for other routes
+        if remaining_dist > trains_left * 0.65:
+            return -(value * 0.8)
 
         efficiency = value / (remaining_dist + 1e-6)
-        return efficiency - penalty
+        return efficiency
