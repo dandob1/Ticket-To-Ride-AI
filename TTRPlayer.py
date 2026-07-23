@@ -13,7 +13,8 @@ class Player(object):
                  playerPosition, 
                  numTrains,
                  ai,
-                 reward=None
+                 reward=None,
+                 name=None
                  ):
         """orderNumber: int
         startingHand: list
@@ -21,13 +22,14 @@ class Player(object):
         playerBoard: PlayerBoard object from the TTRBoard module
         playerPosition: int
         """
-        name = ""
-        if not ai:
-            name = input("Enter player name: ")
+        if name is not None:
+            _name = name
+        elif not ai:
+            _name = input("Enter player name: ")
         else:
             import random
-            name = f"AI_Player_{random.randint(1000,9999)}"
-        self.name           = name #ask for them to enter it on first turn
+            _name = f"AI_Player_{random.randint(1000,9999)}"
+        self.name           = _name  # ask for them to enter it on first turn
         
         #implimented as a collection to avoid O(n) hand.remove(x)
         self.hand           = collections.Counter(startingHand)
@@ -172,5 +174,6 @@ class Player(object):
             position,
             num_trains,
             ai_flag,
-            reward
+            reward,
+            name=self.name
         )
