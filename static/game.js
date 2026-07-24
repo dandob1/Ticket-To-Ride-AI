@@ -2,21 +2,56 @@
 //  game.js  —  Ticket to Ride Web Client
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── City positions (canvas coordinates, 800×600 logical space) ───────────────
+// ── City positions (canvas coordinates, 900×600 logical space) ───────────────
+// Spread to better reflect true US geography — eastern seaboard given more room
 const CITY_POS = {
-  'Vancouver':    [78,  50], 'Seattle':      [80, 125], 'Portland':     [75, 200],
-  'San Francisco':[65, 355], 'Los Angeles':  [110, 455], 'Las Vegas':   [170, 385],
-  'Salt Lake City':[255,310], 'Helena':      [265, 175], 'Denver':      [300, 360],
-  'Phoenix':      [200, 465], 'Santa Fe':    [270, 450], 'El Paso':     [260, 530],
-  'Duluth':       [490, 145], 'Omaha':       [460, 275], 'Kansas City': [460, 350],
-  'Oklahoma City':[450, 435], 'Dallas':      [450, 500], 'Houston':     [470, 555],
-  'New Orleans':  [535, 550], 'Little Rock': [510, 470], 'Nashville':   [555, 420],
-  'Saint Louis':  [520, 350], 'Chicago':     [540, 250], 'Detroit':     [590, 225],
-  'Pittsburgh':   [640, 240], 'Toronto':     [655, 165], 'Montreal':    [720, 120],
-  'Boston':       [760, 165], 'New York':    [740, 225], 'Washington':  [715, 295],
-  'Raleigh':      [680, 355], 'Charleston':  [660, 420], 'Atlanta':     [600, 435],
-  'Miami':        [650, 530], 'Sault St. Marie': [545, 165], 'Winnipeg': [380, 85],
-  'Calgary':      [225, 80],
+  // Pacific Coast
+  'Vancouver':        [72,  46],
+  'Seattle':          [77, 120],
+  'Portland':         [72, 198],
+  'San Francisco':    [60, 348],
+  'Los Angeles':      [108, 452],
+  // Intermountain West
+  'Las Vegas':        [165, 382],
+  'Salt Lake City':   [248, 302],
+  'Phoenix':          [195, 458],
+  'Santa Fe':         [262, 442],
+  'El Paso':          [258, 524],
+  // Rockies / Northern Plains
+  'Calgary':          [220, 72],
+  'Helena':           [258, 168],
+  'Denver':           [295, 355],
+  // Canada / Upper Midwest
+  'Winnipeg':         [392, 78],
+  'Duluth':           [498, 140],
+  'Sault St. Marie':  [552, 162],
+  // Central Plains
+  'Omaha':            [462, 268],
+  'Kansas City':      [462, 345],
+  'Oklahoma City':    [452, 432],
+  'Dallas':           [452, 496],
+  'Houston':          [468, 552],
+  // Mississippi / Deep South
+  'New Orleans':      [542, 548],
+  'Little Rock':      [512, 465],
+  'Saint Louis':      [522, 345],
+  // Great Lakes / Midwest
+  'Chicago':          [542, 246],
+  'Detroit':          [608, 220],
+  // Southeast
+  'Nashville':        [565, 415],
+  'Atlanta':          [625, 435],
+  'Charleston':       [688, 418],
+  'Raleigh':          [712, 352],
+  'Miami':            [688, 535],
+  // Northeast Corridor
+  'Pittsburgh':       [665, 238],
+  'Washington':       [748, 295],
+  'New York':         [778, 225],
+  'Boston':           [800, 162],
+  // Canada East
+  'Toronto':          [678, 160],
+  'Montreal':         [758, 115],
 };
 
 // ── Card colours ─────────────────────────────────────────────────────────────
@@ -103,7 +138,7 @@ function resizeCanvas() {
   const panel = document.getElementById('map-panel');
   canvas.width  = panel.clientWidth;
   canvas.height = panel.clientHeight;
-  SCALE = Math.min(canvas.width / 820, canvas.height / 640);
+  SCALE = Math.min(canvas.width / 860, canvas.height / 640);
   if (state) drawMap(state);
 }
 window.addEventListener('resize', resizeCanvas);
@@ -295,7 +330,7 @@ const PHASE_LABELS = {
   sel_color:  'Choose Card Color',
   confirm_r:  'Confirm Claim',
   draw_tix:   'Draw Destination Tickets',
-  ai_turn:    'AI is Thinking…',
+  ai_turn:    '🤖 AI Playing…',
   game_over:  'Game Over',
 };
 
@@ -452,7 +487,7 @@ function renderActions(st) {
       break;
 
     case 'ai_turn':
-      btn('▶ Continue', () => sendMsg({type:'advance_ai_turn'}), true);
+      // AI turn auto-advances after a short delay — no button needed
       break;
   }
 }
@@ -619,6 +654,35 @@ function pointToSegDist(px, py, x1, y1, x2, y2) {
   return Math.hypot(px - (x1 + t*dx), py - (y1 + t*dy));
 }
 
+// ── AI auto-advance ───────────────────────────────────────────────────────────
+// Tracks the last state key we scheduled an auto-advance for — prevents
+// duplicate timeouts if the server sends the same phase twice.
+let lastAutoKey = null;
+
+function scheduleAutoAdvance(st) {
+  const curPlayer = (st.players || [])[st.player_idx];
+  const key = `${st.phase}:${st.player_idx}`;
+
+  if (key === lastAutoKey) return;   // already scheduled for this state
+  lastAutoKey = key;
+
+  if (st.phase === 'turn_start' && curPlayer?.is_ai) {
+    // Brief pause so the player can see whose turn it is before it fires
+    setTimeout(() => {
+      if (state?.phase === 'turn_start' && state?.player_idx === st.player_idx)
+        sendMsg({type: 'start_turn'});
+    }, 700);
+  } else if (st.phase === 'ai_turn') {
+    // Longer pause so the player can read what the AI did
+    setTimeout(() => {
+      if (state?.phase === 'ai_turn')
+        sendMsg({type: 'advance_ai_turn'});
+    }, 1600);
+  } else if (!curPlayer?.is_ai) {
+    lastAutoKey = null;   // reset so future AI phases trigger correctly
+  }
+}
+
 // ── Phase transitions: auto-advance setup screen ─────────────────────────────
 // Watch for first non-setup state to show game screen
 const _origRender = render;
@@ -644,4 +708,5 @@ function render(st) {
   drawMap(st);
   renderSidebar(st);
   renderModals(st);
+  scheduleAutoAdvance(st);
 }
