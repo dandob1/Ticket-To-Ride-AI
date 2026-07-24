@@ -108,8 +108,10 @@ let SCALE    = 1;
 
 function resizeCanvas() {
   const panel = document.getElementById('map-panel');
-  canvas.width  = panel.clientWidth;
-  canvas.height = panel.clientHeight;
+  const w = panel.clientWidth  || 800;
+  const h = panel.clientHeight || 600;
+  canvas.width  = w;
+  canvas.height = h;
   SCALE = Math.min(canvas.width / 960, canvas.height / 630);
   if (state) drawMap(state);
 }
@@ -147,29 +149,18 @@ function drawMap(st) {
   for (const [key, slots] of Object.entries(st.route_slots)) {
     const [c1, c2] = key.split('|');
     if (!CITY_POS[c1] || !CITY_POS[c2]) continue;
-    const nSlots = slots.length;
+    const nSlots  = slots.length;
     const offsets = slotOffsets(c1, c2, nSlots);
+    const weight  = (st.orig_edges && st.orig_edges[key])
+                    ? st.orig_edges[key].weight : 1;
+    const claimable = st.phase === 'sel_route'
+                   && st.avail_routes && (key in st.avail_routes);
 
     slots.forEach((slot, si) => {
       const { ox, oy } = offsets[si];
-      drawRoute(c1, c2, slot, ox, oy, key === st.last_claim?.key && slot.owner === st.last_claim?.pidx);
+      const flash = key === st.last_claim?.key && slot.owner === st.last_claim?.pidx;
+      drawRoute(c1, c2, slot, ox, oy, weight, flash, claimable);
     });
-  }
-
-  // Available routes highlight (human action phase)
-  if (st.phase === 'sel_route' && st.avail_routes) {
-    for (const key of Object.keys(st.avail_routes)) {
-      const [c1, c2] = key.split('|');
-      if (!CITY_POS[c1] || !CITY_POS[c2]) continue;
-      const [x1,y1] = [mx(CITY_POS[c1][0]), my(CITY_POS[c1][1])];
-      const [x2,y2] = [mx(CITY_POS[c2][0]), my(CITY_POS[c2][1])];
-      ctx.save();
-      ctx.strokeStyle = '#ffe06680';
-      ctx.lineWidth   = 18 * SCALE;
-      ctx.lineCap     = 'round';
-      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-      ctx.restore();
-    }
   }
 
   // Cities
@@ -193,57 +184,106 @@ function drawMap(st) {
   drawLegend(st);
 }
 
-function drawRoute(c1, c2, slot, ox, oy, flash) {
-  const [x1,y1] = [mx(CITY_POS[c1][0]) + ox, my(CITY_POS[c1][1]) + oy];
-  const [x2,y2] = [mx(CITY_POS[c2][0]) + ox, my(CITY_POS[c2][1]) + oy];
+function drawRoute(c1, c2, slot, ox, oy, weight, flash, claimable) {
+  const [x1, y1] = [mx(CITY_POS[c1][0]) + ox, my(CITY_POS[c1][1]) + oy];
+  const [x2, y2] = [mx(CITY_POS[c2][0]) + ox, my(CITY_POS[c2][1]) + oy];
 
-  let fillColor  = slot.owner !== null ? (PLAYER_CSS[slot.owner] || '#888') : (CARD_CSS[slot.orig] || '#888');
-  let lineWidth  = slot.owner !== null ? 9 * SCALE : 7 * SCALE;
-  let alpha      = slot.owner !== null ? 1 : 0.65;
+  const owned      = slot.owner !== null;
+  const routeColor = owned ? (PLAYER_CSS[slot.owner] || '#888')
+                           : (CARD_CSS[slot.orig] || '#888');
+
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;      // unit direction
+  const angle = Math.atan2(dy, dx);
+
+  const n      = Math.max(1, weight || 1);
+  const gap    = 3 * SCALE;                 // gap between cars
+  const carLen = Math.max(4, (len - gap * (n + 1)) / n);
+  const carW   = (owned ? 12 : 9) * SCALE;  // car thickness
 
   ctx.save();
-  ctx.globalAlpha = alpha;
 
-  // Glow flash on last claimed
-  if (flash) {
-    ctx.shadowColor = '#ffe066';
-    ctx.shadowBlur  = 16;
+  // Claimable glow underlay (only during route selection)
+  if (claimable) {
+    ctx.strokeStyle = 'rgba(255, 224, 102, 0.55)';
+    ctx.lineWidth   = carW + 12 * SCALE;
+    ctx.lineCap     = 'round';
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
   }
 
-  // Outline
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth   = lineWidth + 3 * SCALE;
-  ctx.lineCap     = 'round';
-  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  if (flash) { ctx.shadowColor = '#ffe066'; ctx.shadowBlur = 18; }
 
-  // Route line
-  ctx.strokeStyle = fillColor;
-  ctx.lineWidth   = lineWidth;
-  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  // Draw each train-car segment (one per required card)
+  for (let i = 0; i < n; i++) {
+    const start = gap * (i + 1) + carLen * i;
+    const cx = x1 + ux * (start + carLen / 2);
+    const cy = y1 + uy * (start + carLen / 2);
 
-  // Highlight
-  if (slot.owner !== null) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth   = 2 * SCALE;
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
 
+    // black casing
+    ctx.fillStyle = '#000';
+    ctx.fillRect(-carLen / 2 - 1.2, -carW / 2 - 1.5, carLen + 2.4, carW + 3);
+
+    // colored body
+    ctx.fillStyle = routeColor;
+    ctx.fillRect(-carLen / 2, -carW / 2, carLen, carW);
+
+    // light shine on top half for a 3D feel
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.fillRect(-carLen / 2, -carW / 2, carLen, carW * 0.42);
+
+    ctx.restore();
+  }
+
+  ctx.shadowBlur = 0;
+  const midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
+
+  if (owned) {
     // Owner badge at midpoint
-    const mx2 = (x1 + x2) / 2, my2 = (y1 + y2) / 2;
-    ctx.shadowBlur = 0;
-    ctx.fillStyle  = PLAYER_CSS[slot.owner] || '#888';
+    ctx.fillStyle = PLAYER_CSS[slot.owner] || '#888';
     ctx.beginPath();
-    ctx.arc(mx2, my2, 7 * SCALE, 0, Math.PI * 2);
+    ctx.arc(midX, midY, 8 * SCALE, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#000';
-    ctx.lineWidth   = 1;
+    ctx.lineWidth   = 1.5;
     ctx.stroke();
 
-    // Player number
-    ctx.fillStyle = '#fff';
-    ctx.font      = `bold ${Math.max(8, 9 * SCALE)}px sans-serif`;
-    ctx.textAlign = 'center';
+    ctx.fillStyle    = '#fff';
+    ctx.font         = `bold ${Math.max(9, 10 * SCALE)}px sans-serif`;
+    ctx.textAlign    = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(slot.owner + 1, mx2, my2);
+    ctx.fillText(slot.owner + 1, midX, midY);
+    ctx.textBaseline = 'alphabetic';
+  } else {
+    // Cost label: a small pill showing the length, tinted by required color.
+    // This tells the player how many cards (and of what color) the route costs.
+    const label = String(n);
+    ctx.font = `bold ${Math.max(9, 10 * SCALE)}px sans-serif`;
+    const padX = 4 * SCALE, r = 7 * SCALE;
+    const isGrey = slot.orig === 'grey';
+
+    ctx.fillStyle   = '#000';
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(midX, midY, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // ring in the route's required color (grey ring = any single color)
+    ctx.strokeStyle = isGrey ? '#cccccc' : (CARD_CSS[slot.orig] || '#ccc');
+    ctx.lineWidth   = 2 * SCALE;
+    ctx.beginPath();
+    ctx.arc(midX, midY, r, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle    = '#fff';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, midX, midY);
     ctx.textBaseline = 'alphabetic';
   }
 
@@ -267,26 +307,6 @@ function drawLegend(st) {
     ctx.fillText(`${p.name}  ${p.points}pts  🚂${p.trains}`, x + 15, ly);
   });
   ctx.restore();
-}
-
-// ── Main render ───────────────────────────────────────────────────────────────
-
-function render(st) {
-  if (!st || st.phase === 'setup') {
-    // Stay on setup screen until game starts
-    if (!st || st.phase === 'setup') return;
-  }
-
-  // First render: resize + hide setup, show game
-  if (document.getElementById('setup-screen').style.display !== 'none') {
-    document.getElementById('setup-screen').classList.add('hidden');
-    document.getElementById('game-screen').classList.remove('hidden');
-    resizeCanvas();
-  }
-
-  drawMap(st);
-  renderSidebar(st);
-  renderModals(st);
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -597,8 +617,13 @@ function renderGameOver(st) {
 canvas.addEventListener('click', (ev) => {
   if (!state || state.phase !== 'sel_route') return;
   const rect  = canvas.getBoundingClientRect();
-  const clickX = ev.clientX - rect.left;
-  const clickY = ev.clientY - rect.top;
+  // Convert CSS pixel coordinates to canvas bitmap coordinates.
+  // Without this, any difference between the canvas's displayed size and
+  // its internal resolution makes clicks miss the routes entirely.
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clickX = (ev.clientX - rect.left) * scaleX;
+  const clickY = (ev.clientY - rect.top)  * scaleY;
 
   let best = null, bestDist = Infinity;
   for (const [key, colors] of Object.entries(state.avail_routes || {})) {
@@ -610,7 +635,7 @@ canvas.addEventListener('click', (ev) => {
     if (d < bestDist) { bestDist = d; best = key; }
   }
 
-  const threshold = 18 * SCALE;
+  const threshold = 24 * SCALE;
   if (best && bestDist < threshold) {
     const [c1, c2] = best.split('|');
     sendMsg({type: 'click_route', c1, c2});
@@ -655,10 +680,8 @@ function scheduleAutoAdvance(st) {
   }
 }
 
-// ── Phase transitions: auto-advance setup screen ─────────────────────────────
-// Watch for first non-setup state to show game screen
-const _origRender = render;
-window._renderOnce = true;
+// ── Main state render (this is the active render; the earlier definition
+//    is overridden by this one via function hoisting) ──────────────────────────
 function render(st) {
   if (!st) return;
 
@@ -675,6 +698,8 @@ function render(st) {
     setupScreen.classList.add('hidden');
     gameScreen.classList.remove('hidden');
     resizeCanvas();
+    // Re-measure once layout has settled so click coordinates stay aligned
+    requestAnimationFrame(resizeCanvas);
   }
 
   drawMap(st);
