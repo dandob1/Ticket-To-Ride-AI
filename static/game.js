@@ -2,56 +2,28 @@
 //  game.js  —  Ticket to Ride Web Client
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ── City positions (canvas coordinates, 900×600 logical space) ───────────────
-// Spread to better reflect true US geography — eastern seaboard given more room
+// ── City positions (matches TTRDisplay.py — the proven layout) ───────────────
+// These are the exact 36 board cities with names that match the game engine.
+// NOTE: there is no "Detroit"; the city is "Sault St Marie" (no period).
 const CITY_POS = {
-  // Pacific Coast
-  'Vancouver':        [72,  46],
-  'Seattle':          [77, 120],
-  'Portland':         [72, 198],
-  'San Francisco':    [60, 348],
-  'Los Angeles':      [108, 452],
-  // Intermountain West
-  'Las Vegas':        [165, 382],
-  'Salt Lake City':   [248, 302],
-  'Phoenix':          [195, 458],
-  'Santa Fe':         [262, 442],
-  'El Paso':          [258, 524],
-  // Rockies / Northern Plains
-  'Calgary':          [220, 72],
-  'Helena':           [258, 168],
-  'Denver':           [295, 355],
-  // Canada / Upper Midwest
-  'Winnipeg':         [392, 78],
-  'Duluth':           [498, 140],
-  'Sault St. Marie':  [552, 162],
-  // Central Plains
-  'Omaha':            [462, 268],
-  'Kansas City':      [462, 345],
-  'Oklahoma City':    [452, 432],
-  'Dallas':           [452, 496],
-  'Houston':          [468, 552],
-  // Mississippi / Deep South
-  'New Orleans':      [542, 548],
-  'Little Rock':      [512, 465],
-  'Saint Louis':      [522, 345],
-  // Great Lakes / Midwest
-  'Chicago':          [542, 246],
-  'Detroit':          [608, 220],
-  // Southeast
-  'Nashville':        [565, 415],
-  'Atlanta':          [625, 435],
-  'Charleston':       [688, 418],
-  'Raleigh':          [712, 352],
-  'Miami':            [688, 535],
-  // Northeast Corridor
-  'Pittsburgh':       [665, 238],
-  'Washington':       [748, 295],
-  'New York':         [778, 225],
-  'Boston':           [800, 162],
-  // Canada East
-  'Toronto':          [678, 160],
-  'Montreal':         [758, 115],
+  'Vancouver':      [78,  50], 'Seattle':        [80, 125],
+  'Portland':       [75, 200], 'Calgary':        [208,  55],
+  'Helena':         [308, 132], 'San Francisco':  [62, 310],
+  'Salt Lake City': [258, 280], 'Las Vegas':      [198, 352],
+  'Los Angeles':    [120, 425], 'Phoenix':        [218, 438],
+  'Santa Fe':       [336, 400], 'El Paso':        [318, 480],
+  'Denver':         [360, 292], 'Winnipeg':       [460,  76],
+  'Duluth':         [556, 162], 'Omaha':          [512, 248],
+  'Kansas City':    [530, 328], 'Oklahoma City':  [494, 410],
+  'Dallas':         [486, 480], 'Houston':        [490, 545],
+  'New Orleans':    [580, 545], 'Little Rock':    [560, 432],
+  'Saint Louis':    [598, 350], 'Nashville':      [654, 390],
+  'Atlanta':        [670, 454], 'Miami':          [762, 568],
+  'Charleston':     [748, 445], 'Raleigh':        [738, 388],
+  'Pittsburgh':     [722, 280], 'Toronto':        [710, 202],
+  'Sault St Marie': [654, 152], 'Chicago':        [628, 244],
+  'Montreal':       [800, 124], 'Boston':         [895, 150],
+  'New York':       [840, 244], 'Washington':     [806, 312],
 };
 
 // ── Card colours ─────────────────────────────────────────────────────────────
@@ -138,7 +110,7 @@ function resizeCanvas() {
   const panel = document.getElementById('map-panel');
   canvas.width  = panel.clientWidth;
   canvas.height = panel.clientHeight;
-  SCALE = Math.min(canvas.width / 860, canvas.height / 640);
+  SCALE = Math.min(canvas.width / 960, canvas.height / 630);
   if (state) drawMap(state);
 }
 window.addEventListener('resize', resizeCanvas);
