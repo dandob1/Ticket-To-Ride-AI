@@ -30,6 +30,12 @@ async def root():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/health")
+async def health():
+    """Lightweight endpoint for uptime pingers (keeps free host awake)."""
+    return {"status": "ok", "sessions": len(sessions)}
+
+
 # ── WebSocket endpoint ────────────────────────────────────────────────────────
 
 @app.websocket("/ws/{session_id}")
