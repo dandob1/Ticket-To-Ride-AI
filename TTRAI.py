@@ -71,7 +71,7 @@ class AI:
         self.root = MTNode(state, None, None)
 
         # Build out the tree
-        for i in range (0, 1000):
+        for i in range (0, 50000):
             self.simulate(state, depth, self.root)
         
         # Do a 1-layer bfs to find the best score move
