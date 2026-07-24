@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ticket to Ride AI</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+<!-- ── Setup Screen ─────────────────────────────────────────────────────── -->
+<div id="setup-screen" class="overlay">
+  <div class="setup-card">
+    <h1>🚂 Ticket to Ride AI</h1>
+    <p class="subtitle">Compete against AI opponents on the classic USA map</p>
+
+    <div class="setup-row">
+      <label>Human players</label>
+      <div class="stepper">
+        <button onclick="changeVal('n-human',-1)">−</button>
+        <span id="n-human">1</span>
+        <button onclick="changeVal('n-human',+1)">+</button>
+      </div>
+    </div>
+
+    <div class="setup-row">
+      <label>AI opponents</label>
+      <div class="stepper">
+        <button onclick="changeVal('n-ai',-1)">−</button>
+        <span id="n-ai">1</span>
+        <button onclick="changeVal('n-ai',+1)">+</button>
+      </div>
+    </div>
+
+    <div class="setup-row">
+      <label>AI strategy</label>
+      <select id="ai-strat">
+        <option value="2">Balanced (Random)</option>
+        <option value="1">Route Focused</option>
+        <option value="0">Ticket Focused</option>
+      </select>
+    </div>
+
+    <button id="start-btn" class="btn-primary" onclick="startGame()">Start Game</button>
+  </div>
+</div>
+
+<!-- ── Game Screen ───────────────────────────────────────────────────────── -->
+<div id="game-screen" class="hidden">
+
+  <!-- Left: map canvas -->
+  <div id="map-panel">
+    <canvas id="map-canvas"></canvas>
+    <div id="ai-banner" class="ai-banner hidden"></div>
+  </div>
+
+  <!-- Right: sidebar -->
+  <div id="sidebar">
+
+    <!-- Phase banner -->
+    <div id="phase-banner" class="phase-banner"></div>
+
+    <!-- Player stats -->
+    <div id="players-panel"></div>
+
+    <!-- Hand + face-up cards -->
+    <div id="cards-panel" class="panel">
+      <h3>Your Hand</h3>
+      <div id="hand-cards" class="card-row"></div>
+      <h3>Face-Up Cards <span class="dim">(deck: <span id="deck-count">0</span>)</span></h3>
+      <div id="face-up-cards" class="card-row"></div>
+    </div>
+
+    <!-- Tickets -->
+    <div id="tickets-panel" class="panel">
+      <h3>Your Tickets</h3>
+      <div id="my-tickets"></div>
+    </div>
+
+    <!-- Action buttons -->
+    <div id="action-panel" class="panel">
+      <div id="action-buttons"></div>
+    </div>
+
+    <!-- Log -->
+    <div id="log-panel" class="panel">
+      <h3>Game Log</h3>
+      <div id="log-messages"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Overlay modals ────────────────────────────────────────────────────── -->
+
+<!-- Ticket chooser (init & in-game draw) -->
+<div id="tix-modal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <h2 id="tix-title">Choose Destination Tickets</h2>
+    <p id="tix-hint"></p>
+    <div id="tix-list"></div>
+    <button class="btn-primary" onclick="confirmTix()">Confirm</button>
+  </div>
+</div>
+
+<!-- Color picker -->
+<div id="color-modal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <h2>Choose Card Color</h2>
+    <p id="color-hint"></p>
+    <div id="color-buttons" class="color-row"></div>
+    <button class="btn-secondary" onclick="sendMsg({type:'cancel'})">Cancel</button>
+  </div>
+</div>
+
+<!-- Confirm claim -->
+<div id="confirm-modal" class="modal-backdrop hidden">
+  <div class="modal-box">
+    <h2>Claim Route</h2>
+    <p id="confirm-text"></p>
+    <div id="confirm-combo" class="card-row"></div>
+    <div class="modal-btns">
+      <button class="btn-primary" onclick="sendMsg({type:'confirm_claim'})">Claim!</button>
+      <button class="btn-secondary" onclick="sendMsg({type:'cancel'})">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Game over -->
+<div id="gameover-modal" class="modal-backdrop hidden">
+  <div class="modal-box wide">
+    <h2>🏁 Game Over!</h2>
+    <div id="final-scores"></div>
+    <button class="btn-primary" onclick="location.reload()">New Game</button>
+  </div>
+</div>
+
+<script src="/static/game.js"></script>
+</body>
+</html>
