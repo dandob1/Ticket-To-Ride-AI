@@ -1,10 +1,46 @@
 # Ticket to Ride AI
 
-1. Install `requirements.txt` with `pip install requirements.txt`
+An AI agent that plays Ticket to Ride using Monte Carlo Tree Search, playable through an interactive web app or from the command line.
+
+## 🎮 Play Online
+
+The game is hosted live on Render:
+
+**▶ [Play Ticket to Ride AI](https://ticket-to-ride-ai.onrender.com)**
+
+Open the link, choose how many human players and AI opponents you want, and play directly in your browser — no installation required. AI opponents take their turns automatically.
+
+## Web App (run locally)
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Start the server: `uvicorn web_app:app --host 0.0.0.0 --port 8000`
+3. Open `http://localhost:8000` in your browser
+
+The web app is built with **FastAPI + WebSockets** on the backend and an **HTML5 Canvas** frontend that renders the full USA map, routes, cards, and destination tickets.
+
+### Deployment (Render + keep-alive)
+
+The app is deployed as a **Web Service** on [Render](https://render.com):
+
+- **Build Command:** `pip install -r requirements.txt`
+- **Start Command:** `uvicorn web_app:app --host 0.0.0.0 --port $PORT`
+
+Render's free tier sleeps a service after 15 minutes of inactivity. To keep the game always-on, a free [UptimeRobot](https://uptimerobot.com) monitor pings the lightweight `/health` endpoint every 5 minutes, which prevents the service from spinning down.
+
+## Command-Line Version
+
+1. Install `requirements.txt` with `pip install -r requirements.txt`
 2. Run `python TTRGameSim.py`
 3. To play against the AI, type `2` players and select `1` AI when prompted
 4. You can also make `2` AI play against each other by selecting `2` AI when prompted
 5. Note: Final scores may appear negative. To avoid long runtimes, the current implementation (2/4/2026) limits simulations to approximately 25% of a full game. Since endgame is not reached, final scores are significantly deducted.
+
+## Interactive Desktop Display
+
+A Pygame-based interactive display is also available:
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Run `python TTRDisplay.py`
 
 
 # Blog:
