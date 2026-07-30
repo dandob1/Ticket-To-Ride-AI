@@ -560,8 +560,13 @@ function confirmTix(chosen) {
 
 // Color picker
 function renderColorModal(st) {
-  document.getElementById('color-hint').textContent =
-    st.sel_route ? `Route: ${st.sel_route.replace('|',' → ')}` : '';
+  // `sel_route` is serialized as an object (with `c1`/`c2` or `key`).
+  // Safely format it for display to avoid runtime errors when it's an object.
+  const sr = st.sel_route;
+  const routeLabel = sr ? (sr.c1 && sr.c2
+    ? `${sr.c1} → ${sr.c2}`
+    : (sr.key ? sr.key.split('|').join(' → ') : '')) : '';
+  document.getElementById('color-hint').textContent = routeLabel;
   const cb = document.getElementById('color-buttons');
   cb.innerHTML = '';
   (st.playable_colors || []).forEach(col => {
