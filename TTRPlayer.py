@@ -152,7 +152,8 @@ class Player(object):
             for x in range(min(colorCount, weight) + 1):
                 if wilds is not None:
                     for y in range(min(wilds, weight - x) + 1):
-                        possibleCombinations.append({color:x, "wild":y})
+                        if x + y == weight:
+                            possibleCombinations.append({color:x, "wild":y})
                 
         return possibleCombinations
 
