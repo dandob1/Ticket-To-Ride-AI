@@ -569,15 +569,25 @@ function renderColorModal(st) {
   document.getElementById('color-hint').textContent = routeLabel;
   const cb = document.getElementById('color-buttons');
   cb.innerHTML = '';
-  (st.playable_colors || []).forEach(col => {
-    const b = document.createElement('button');
-    b.className   = 'color-btn';
-    b.style.background = CARD_CSS[col] || '#888';
-    b.style.color      = CARD_FG[col]  || '#fff';
-    b.textContent = col;
-    b.addEventListener('click', () => sendMsg({type:'select_color', color: col}));
-    cb.appendChild(b);
-  });
+  const colors = st.playable_colors || [];
+  console.log('renderColorModal: playable_colors=', colors, 'sel_route=', st.sel_route);
+  if (!colors.length) {
+    const note = document.createElement('div');
+    note.className = 'dim';
+    note.textContent = 'No available colors to choose from.';
+    cb.appendChild(note);
+  } else {
+    colors.forEach(col => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className   = 'color-btn';
+      b.style.background = CARD_CSS[col] || '#888';
+      b.style.color      = CARD_FG[col]  || '#fff';
+      b.textContent = col;
+      b.addEventListener('click', () => sendMsg({type:'select_color', color: col}));
+      cb.appendChild(b);
+    });
+  }
 }
 
 // Confirm claim
